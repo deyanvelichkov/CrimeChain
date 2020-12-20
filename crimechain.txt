@@ -1,0 +1,52 @@
+pragma solidity >0.4.23 <0.8.0;
+pragma experimental ABIEncoderV2;
+
+contract Crime {
+    string names;
+    uint128 personalId;
+    string personCountry;
+    
+    string crimeCategory;
+    string crimeDetails;
+    
+    string sentenceType;
+    uint256 sentenceValidFrom;
+    uint256 sentenceValidTo;
+    uint paymentAmount;
+    string prisonAddress;
+    string court;
+    
+    uint64 creatorPhoneNumber;
+    
+    constructor(
+        string memory names,
+        uint128 personalId,
+        string memory personCountry,
+        string memory crimeCategory,
+        string memory crimeDetails,
+        string memory sentenceType,
+        uint256 sentenceValidFrom,
+        uint256 sentenceValidTo,
+        uint paymentAmount,
+        string memory prisonAddress,
+        string memory court,
+        uint64 creatorPhoneNumber,
+        uint64 phoneNumber) {
+        
+        this.names = names;
+        this.personalId = personalId;
+        this.personCountry = personCountry;
+        
+        this.crimeCategory = crimeCategory;
+        this.crimeDetails = crimeDetails;
+        
+        this.sentenceType = sentenceType;
+        this.sentenceValidFrom = sentenceValidFrom;
+        this.sentenceValidTo = sentenceValidTo;
+        this.paymentAmount = paymentAmount;
+        this.prisonAddress = prisonAddress;
+        this.court = court;
+        
+        this.creatorPhoneNumber = creatorPhoneNumber;
+    }
+}
