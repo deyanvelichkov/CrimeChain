@@ -1,52 +1,182 @@
-pragma solidity >0.4.23 <0.8.0;
-pragma experimental ABIEncoderV2;
+// SPDX-License-Identifier: UNLICENSED
 
-contract Crime {
-    string names;
-    uint128 personalId;
-    string personCountry;
+pragma solidity 0.7.4;
+
+contract CrimeChain {
+    struct Person {
+        string firstName;
+        string lastName;
+        bytes32 personalId;
+        bytes32 country;    
+    }
     
-    string crimeCategory;
-    string crimeDetails;
+    struct Verdict {
+        bool isGuilty;
+        uint sentenceMonths;
+        string sentenceLocation;
+        uint sumToPay;
+    }
     
-    string sentenceType;
-    uint256 sentenceValidFrom;
-    uint256 sentenceValidTo;
-    uint paymentAmount;
-    string prisonAddress;
-    string court;
+    enum CaseState {NOT_STARTED, IN_PROGRESS, FINISHED}
     
-    uint64 creatorPhoneNumber;
+    
+    uint caseCreated;
+    uint caseLastUpdated;
+    CaseState caseState;
+    Verdict verdict;
+    Person defendant;
+    Person judgeIdentity;
+    address judge;
+    mapping(address => string[]) evidence;
+    mapping(address => Person) evidencePresenters;
+    mapping(bytes32 => address) evidencePresenterAddresses;
+    
+    
+    
+    event PersonAdded(string firstName, string lastName, bytes32 personalId, bytes32 country, bytes32 role);
+    event EvidenceAdded(string firstName, string lastName, bytes32 personalId, bytes32 country, string evidence);
+    event VerdictDecided(bool isGuilty, uint sentenceMonths, string sentenceLocation, uint sumToPay);
     
     constructor(
-        string memory names,
-        uint128 personalId,
-        string memory personCountry,
-        string memory crimeCategory,
-        string memory crimeDetails,
-        string memory sentenceType,
-        uint256 sentenceValidFrom,
-        uint256 sentenceValidTo,
-        uint paymentAmount,
-        string memory prisonAddress,
-        string memory court,
-        uint64 creatorPhoneNumber,
-        uint64 phoneNumber) {
+        string memory judgeFirstName,
+        string memory judgeLastName,
+        bytes32 judgePersonalId,
+        bytes32 judgeCountry    
+    ) modifying {
+        judge = msg.sender;
+        judgeIdentity = Person(judgeFirstName, judgeLastName, judgePersonalId, judgeCountry);
+        caseState = CaseState.NOT_STARTED;
+        caseCreated = block.timestamp;
         
-        this.names = names;
-        this.personalId = personalId;
-        this.personCountry = personCountry;
-        
-        this.crimeCategory = crimeCategory;
-        this.crimeDetails = crimeDetails;
-        
-        this.sentenceType = sentenceType;
-        this.sentenceValidFrom = sentenceValidFrom;
-        this.sentenceValidTo = sentenceValidTo;
-        this.paymentAmount = paymentAmount;
-        this.prisonAddress = prisonAddress;
-        this.court = court;
-        
-        this.creatorPhoneNumber = creatorPhoneNumber;
+        emit PersonAdded(judgeFirstName, judgeLastName, judgePersonalId, judgeCountry, "judge");
     }
+    
+    modifier onlyJudge() {
+        require(msg.sender == judge);
+        _;
+    }
+    
+    modifier notJudge() {
+        require(msg.sender != judge);
+        _;
+    }
+    
+    modifier onlyEvidencePresenter() {
+        require(bytes(evidencePresenters[msg.sender].firstName).length > 0);
+        _;
+    }
+    
+    modifier caseNotStarted () {
+        require(caseState == CaseState.NOT_STARTED);
+        _;
+    }
+    
+    modifier caseInProgess () {
+        require(caseState == CaseState.IN_PROGRESS);
+        _;
+    }
+    
+    modifier caseFinished () {
+        require(caseState == CaseState.FINISHED);
+        _;
+    }
+    
+    modifier caseStarted() {
+        require(caseState != CaseState.NOT_STARTED);
+        _;
+    }
+    
+    modifier modifying() {
+        _;
+        caseLastUpdated = block.timestamp;
+    }
+    
+    function setDefendant (
+        string memory defendantFirstName,
+        string memory defendantLastName,
+        bytes32 defendantPersonalId,
+        bytes32 defendantCountry
+    ) 
+        public 
+        onlyJudge 
+        caseNotStarted
+        modifying
+    {
+        defendant = Person(defendantFirstName, defendantLastName, defendantPersonalId, defendantCountry);
+        caseState = CaseState.IN_PROGRESS;
+        
+        
+        emit PersonAdded(defendantFirstName, defendantLastName, defendantPersonalId, defendantCountry, "defendant");
+    }
+    
+    function registerAsEvidencePresenter (
+        string memory firstName,
+        string memory lastName,
+        bytes32 personalId,
+        bytes32 country
+    ) 
+        public 
+        notJudge
+        caseInProgess
+        modifying
+    {
+        evidencePresenters[msg.sender] = Person(firstName, lastName, personalId, country);
+        evidencePresenterAddresses[personalId] = msg.sender;
+        
+        emit PersonAdded(firstName, lastName, personalId, country, "evidencePresenter");
+    }
+    
+    function addEvidence(string memory newEvidence) public caseInProgess onlyEvidencePresenter modifying {
+        evidence[msg.sender].push(newEvidence);
+        
+        emit EvidenceAdded(evidencePresenters[msg.sender].firstName, evidencePresenters[msg.sender].lastName, evidencePresenters[msg.sender].personalId, evidencePresenters[msg.sender].country, newEvidence);
+    }
+    
+    function decideVerdict(
+        bool isGuilty,
+        uint sentenceMonths,
+        string memory sentenceLocation,
+        uint sumToPay
+    ) 
+        public
+        caseInProgess
+        onlyJudge
+        modifying
+    {
+        verdict = Verdict(isGuilty, sentenceMonths, sentenceLocation, sumToPay);
+        caseState = CaseState.FINISHED;
+        
+        emit VerdictDecided(isGuilty, sentenceMonths, sentenceLocation, sumToPay);
+    }
+    
+    function getEvidence(uint index, bytes32 evidencePresenterPersonalId) public caseStarted view returns(string memory) {
+        return evidence[evidencePresenterAddresses[evidencePresenterPersonalId]][index];
+    }
+    
+    function getJudge() public view returns (string memory, string memory, bytes32, bytes32) {
+        return (judgeIdentity.firstName, judgeIdentity.lastName, judgeIdentity.personalId, judgeIdentity.country);
+    }
+    
+    function getDefendant() public caseStarted view returns (string memory, string memory, bytes32, bytes32) {
+        return (defendant.firstName, defendant.lastName, defendant.personalId, defendant.country);
+    }
+    
+    function getEvidencePresenter(bytes32 personalId) public caseStarted view returns (string memory, string memory, bytes32, bytes32) {
+        Person memory evidencePresenter = evidencePresenters[evidencePresenterAddresses[personalId]];
+        return (evidencePresenter.firstName, evidencePresenter.lastName, evidencePresenter.personalId, evidencePresenter.country);
+    }
+    
+    function getCaseCreated() public view returns(uint) {
+        return caseCreated;
+    }
+    
+    function getCaseLastUpdated() public view returns(uint) {
+        return caseLastUpdated;
+    }
+    
+    function getVerdict() public caseFinished view returns(bool, uint, string memory, uint) {
+        return (verdict.isGuilty, verdict.sentenceMonths, verdict.sentenceLocation, verdict.sumToPay);
+    }
+
+    
 }
